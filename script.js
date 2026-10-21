@@ -33,3 +33,78 @@ dialog.addEventListener('close', () => {
   document.body.classList.remove('modal-open');
   opener?.focus();
 });
+
+// This public manifest is edited only after an explicit release receipt.
+// A successful HTTP response never changes the game's review status.
+const publicAssets = new Set([
+  'assets/hero.webp', 'assets/logo.webp', 'assets/icon.png',
+  'assets/screenshots/01-wing.webp', 'assets/screenshots/01-wing.png',
+  'assets/screenshots/02-camp.webp', 'assets/screenshots/02-camp.png',
+  'assets/screenshots/03-workshop.webp', 'assets/screenshots/03-workshop.png',
+  'assets/lightweaver-r68-gameplay-29s.mp4'
+]);
+let publicRevision = '';
+const adoptedAssetVersions = new Map();
+const publicStateURL = new URL('site-state.json', document.baseURI);
+function assetURL(path, version) {
+  const url = new URL(path, document.baseURI);
+  url.searchParams.set('v', version);
+  return url.href;
+}
+function publicAssetPath(value) {
+  const url = new URL(value, document.baseURI);
+  if (url.origin !== location.origin) return null;
+  return [...publicAssets].find(path => new URL(path, document.baseURI).pathname === url.pathname) || null;
+}
+function replaceVideoSource(url) {
+  const state = { time: video.currentTime, paused: video.paused, volume: video.volume, muted: video.muted, rate: video.playbackRate };
+  const source = video.querySelector('source');
+  if (!source || source.src === url) return;
+  source.src = url;
+  video.addEventListener('loadedmetadata', () => {
+    video.currentTime = Math.min(state.time, Number.isFinite(video.duration) ? Math.max(0, video.duration - .05) : state.time);
+    video.volume = state.volume; video.muted = state.muted; video.playbackRate = state.rate;
+    if (!state.paused && dialog.open) video.play().catch(() => {});
+  }, { once: true });
+  video.load();
+}
+function adoptPublicState(state) {
+  if (state.schemaVersion !== 1 || typeof state.revision !== 'string' || state.revision === publicRevision) return;
+  if (!state.status || !['review_pending', 'available'].includes(state.status.phase)) return;
+  const fields = ['summary', 'availability', 'note'];
+  if (fields.some(key => typeof state.status[key] !== 'string' || state.status[key].length > 400)) return;
+  const statusURL = new URL(state.status.url);
+  if (statusURL.protocol !== 'https:') return;
+  fields.forEach(key => document.querySelectorAll(`[data-public-status="${key}"]`).forEach(node => {
+    if (node.textContent !== state.status[key]) node.textContent = state.status[key];
+  }));
+  document.querySelectorAll('[data-public-status-link]').forEach(link => {
+    if (link.href !== statusURL.href) link.href = statusURL.href;
+  });
+  for (const [path, version] of Object.entries(state.assetVersions || {})) {
+    if (!publicAssets.has(path) || typeof version !== 'string' || !/^[a-zA-Z0-9._-]{1,80}$/.test(version) || adoptedAssetVersions.get(path) === version) continue;
+    const url = assetURL(path, version);
+    document.querySelectorAll('img[src], link[rel="icon"][href], a[href], video[poster]').forEach(node => {
+      const attr = node.tagName === 'IMG' ? 'src' : node.tagName === 'VIDEO' ? 'poster' : 'href';
+      if (publicAssetPath(node.getAttribute(attr)) === path && node.getAttribute(attr) !== url) node.setAttribute(attr, url);
+    });
+    if (path === 'assets/hero.webp') document.querySelector('.play-section').style.backgroundImage = `url("${url}")`;
+    if (path.endsWith('.mp4')) {
+      // Initial manifest adoption keeps a currently playing video untouched.
+      if (adoptedAssetVersions.has(path)) replaceVideoSource(url);
+    }
+    adoptedAssetVersions.set(path, version);
+  }
+  publicRevision = state.revision;
+}
+async function checkPublicState() {
+  try {
+    const url = new URL(publicStateURL); url.searchParams.set('_', Date.now());
+    const response = await fetch(url, { cache: 'no-store', credentials: 'omit' });
+    if (response.ok) adoptPublicState(await response.json());
+  } catch { /* Keep the current page usable offline; retry without a UI interruption. */ }
+}
+checkPublicState();
+setInterval(checkPublicState, 8000);
+window.addEventListener('online', checkPublicState);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkPublicState(); });
