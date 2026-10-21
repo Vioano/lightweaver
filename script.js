@@ -119,6 +119,59 @@ function adoptPublicState(state) {
   adoptPublicVideo(state.video);
   publicRevision = state.revision;
 }
+
+const CLIENT_VERSION = '20261021-client-1';
+const UPGRADE_STATE_KEY = 'lightweaver-upgrade-state-v1';
+root.dataset.clientVersion = CLIENT_VERSION;
+let clientUpgradeRunning = false;
+function captureClientState(targetVersion) {
+  const focused = document.activeElement;
+  return { schemaVersion: 1, savedAt: Date.now(), fromVersion: CLIENT_VERSION, targetVersion,
+    theme: root.dataset.theme, scrollX, scrollY, dialogOpen: dialog.open,
+    video: { currentTime: video.currentTime, paused: video.paused, volume: video.volume, muted: video.muted, playbackRate: video.playbackRate, loop: video.loop },
+    focus: { id: focused?.id || '', watchIndex: [...document.querySelectorAll('[data-watch]')].indexOf(focused), statusLink: focused?.hasAttribute('data-public-status-link') || false },
+    openerIndex: [...document.querySelectorAll('[data-watch]')].indexOf(opener)
+  };
+}
+async function upgradeClient(client) {
+  if (!client || client.version === CLIENT_VERSION || clientUpgradeRunning || typeof client.version !== 'string' || !/^[a-zA-Z0-9._-]{1,80}$/.test(client.version)) return false;
+  clientUpgradeRunning = true;
+  try {
+    const entry = new URL(client.entry || './', document.baseURI);
+    if (entry.origin !== location.origin || entry.pathname !== new URL('./', document.baseURI).pathname) throw new Error('Invalid upgrade entry');
+    entry.searchParams.set('client', client.version); entry.hash = location.hash;
+    const response = await fetch(entry, { cache: 'no-store', signal: AbortSignal.timeout(6000) });
+    const text = response.ok ? await response.text() : '';
+    const doc = new DOMParser().parseFromString(text, 'text/html');
+    if (doc.querySelector('meta[name="lightweaver-client-version"]')?.content !== client.version) throw new Error('Upgrade entry is not ready');
+    sessionStorage.setItem(UPGRADE_STATE_KEY, JSON.stringify(captureClientState(client.version)));
+    location.replace(entry.href); return true;
+  } catch { clientUpgradeRunning = false; return false; }
+}
+async function restoreClientState() {
+  let state;
+  try { state = JSON.parse(sessionStorage.getItem(UPGRADE_STATE_KEY) || 'null'); } catch {}
+  if (!state || state.schemaVersion !== 1 || state.targetVersion !== CLIENT_VERSION || Date.now() - state.savedAt > 900000) return;
+  updateTheme(state.theme === 'light' ? 'light' : 'dark');
+  if (state.dialogOpen) { dialog.showModal(); document.body.classList.add('modal-open'); }
+  opener = document.querySelectorAll('[data-watch]')[state.openerIndex] || document.querySelector('[data-watch]');
+  const saved = state.video || {};
+  video.volume = Math.max(0, Math.min(1, Number(saved.volume) || 0)); video.muted = !!saved.muted;
+  video.playbackRate = Number(saved.playbackRate) || 1; video.loop = !!saved.loop;
+  if (state.dialogOpen || saved.currentTime > 0) {
+    await new Promise(resolve => { if (video.readyState >= 1) return resolve(); const done = () => resolve(); video.addEventListener('loadedmetadata', done, { once: true }); video.preload = 'metadata'; video.load(); setTimeout(done, 6000); });
+    if (video.readyState >= 1) video.currentTime = Math.min(Number(saved.currentTime) || 0, Math.max(0, video.duration - .05));
+  }
+  if (!saved.paused && state.dialogOpen) await video.play().catch(() => {}); else video.pause();
+  const focus = state.focus || {};
+  const target = (focus.id && document.getElementById(focus.id)) || (focus.watchIndex >= 0 && document.querySelectorAll('[data-watch]')[focus.watchIndex]) || (focus.statusLink && document.querySelector('[data-public-status-link]'));
+  target?.focus({ preventScroll: true });
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  window.scrollTo({ left: Number(state.scrollX) || 0, top: Number(state.scrollY) || 0, behavior: 'instant' });
+  sessionStorage.removeItem(UPGRADE_STATE_KEY);
+  window.__lightweaverUpgrade = { from: state.fromVersion, to: CLIENT_VERSION, restored: true, at: Date.now(), paused: video.paused };
+}
+
 let publicStateCheckRunning = false;
 async function checkPublicState() {
   if (publicStateCheckRunning) return;
@@ -126,11 +179,11 @@ async function checkPublicState() {
   try {
     const url = new URL(publicStateURL); url.searchParams.set('_', Date.now());
     const response = await fetch(url, { cache: 'no-store', credentials: 'omit', signal: AbortSignal.timeout(6000) });
-    if (response.ok) adoptPublicState(await response.json());
+    if (response.ok) { const state = await response.json(); if (!(await upgradeClient(state.client))) adoptPublicState(state); }
   } catch { /* Keep the current page usable offline; retry without a UI interruption. */ }
   finally { publicStateCheckRunning = false; }
 }
-checkPublicState();
+restoreClientState().finally(checkPublicState);
 setInterval(checkPublicState, 8000);
 window.addEventListener('online', checkPublicState);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkPublicState(); });
