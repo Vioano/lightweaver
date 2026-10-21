@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": "20261021-pc-trial-live-1108",
+  "revision": "20261021-surf-workshop-20s-3bd97c07",
   "status": {
     "phase": "available",
     "summary": "PC 试玩 · 已开放",
@@ -19,5 +19,15 @@
     "assets/screenshots/03-workshop.webp": "r70-1",
     "assets/screenshots/03-workshop.png": "r70-1",
     "assets/lightweaver-r68-gameplay-29s.mp4": "r68-3"
+  },
+  "video": {
+    "path": "assets/lightweaver-morning-tide-workshop-720p.mp4",
+    "version": "3bd97c07c841bc2c",
+    "watchLabel": "观看 20 秒实机",
+    "caption": "20 秒实机 · 冲浪＋工坊",
+    "detail": "原生 720 · 游戏原声",
+    "ariaLabel": "播放20秒真实冲浪与工坊片段",
+    "dialogMeta": "r75 冲浪 12 秒＋r74 工坊 8 秒 · 原生 720",
+    "note": "两个真实游戏片段剪接；封面为 r70 截图。非同一旅程或完整拼装演示。"
   }
 }

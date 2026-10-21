@@ -41,9 +41,11 @@ const publicAssets = new Set([
   'assets/screenshots/01-wing.webp', 'assets/screenshots/01-wing.png',
   'assets/screenshots/02-camp.webp', 'assets/screenshots/02-camp.png',
   'assets/screenshots/03-workshop.webp', 'assets/screenshots/03-workshop.png',
-  'assets/lightweaver-r68-gameplay-29s.mp4'
+  'assets/lightweaver-r68-gameplay-29s.mp4',
+  'assets/lightweaver-morning-tide-workshop-720p.mp4'
 ]);
 let publicRevision = '';
+let adoptedVideoIdentity = '';
 const adoptedAssetVersions = new Map();
 const publicStateURL = new URL('site-state.json', document.baseURI);
 function assetURL(path, version) {
@@ -68,6 +70,24 @@ function replaceVideoSource(url) {
   }, { once: true });
   video.load();
 }
+function adoptPublicVideo(media) {
+  if (!media || !publicAssets.has(media.path) || !media.path.endsWith('.mp4') || typeof media.version !== 'string' || !/^[a-zA-Z0-9._-]{1,80}$/.test(media.version)) return;
+  const fields = ['watchLabel', 'caption', 'detail', 'dialogMeta', 'note'];
+  if (fields.some(key => typeof media[key] !== 'string' || media[key].length > 300) || typeof media.ariaLabel !== 'string') return;
+  fields.forEach(key => document.querySelectorAll(`[data-public-video="${key}"]`).forEach(node => {
+    if (node.textContent !== media[key]) node.textContent = media[key];
+  }));
+  const poster = document.querySelector('.video-poster');
+  if (poster.getAttribute('aria-label') !== media.ariaLabel) poster.setAttribute('aria-label', media.ariaLabel);
+  const url = assetURL(media.path, media.version);
+  document.querySelectorAll('[data-public-video-link]').forEach(link => { if (link.href !== url) link.href = url; });
+  const identity = `${media.path}@${media.version}`;
+  if (identity !== adoptedVideoIdentity) {
+    if (video.readyState > 0 || !video.paused) replaceVideoSource(url);
+    else { video.querySelector('source').src = url; video.load(); }
+    adoptedVideoIdentity = identity;
+  }
+}
 function adoptPublicState(state) {
   if (state.schemaVersion !== 1 || typeof state.revision !== 'string' || state.revision === publicRevision) return;
   if (!state.status || !['review_pending', 'available'].includes(state.status.phase)) return;
@@ -83,6 +103,7 @@ function adoptPublicState(state) {
   });
   for (const [path, version] of Object.entries(state.assetVersions || {})) {
     if (!publicAssets.has(path) || typeof version !== 'string' || !/^[a-zA-Z0-9._-]{1,80}$/.test(version) || adoptedAssetVersions.get(path) === version) continue;
+    if (state.video && path.endsWith('.mp4')) { adoptedAssetVersions.set(path, version); continue; }
     const url = assetURL(path, version);
     document.querySelectorAll('img[src], link[rel="icon"][href], a[href], video[poster]').forEach(node => {
       const attr = node.tagName === 'IMG' ? 'src' : node.tagName === 'VIDEO' ? 'poster' : 'href';
@@ -95,6 +116,7 @@ function adoptPublicState(state) {
     }
     adoptedAssetVersions.set(path, version);
   }
+  adoptPublicVideo(state.video);
   publicRevision = state.revision;
 }
 let publicStateCheckRunning = false;
