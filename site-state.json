@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "revision": "20261021-review-pending-3",
+  "revision": "20261021-pc-trial-live-1108",
   "status": {
-    "phase": "review_pending",
-    "summary": "试玩进展 · 审核中",
-    "availability": "审核后开放",
-    "note": "当前试玩包仍在审核中，通过后再开放试玩。开放情况以 TapTap 页面为准。",
+    "phase": "available",
+    "summary": "PC 试玩 · 已开放",
+    "availability": "PC 试玩 DEMO 已开放",
+    "note": "PC 试玩 DEMO 已开放。当前线上版本为 0.1.70，请通过 TapTap PC 端体验。",
     "url": "https://www.taptap.cn/app/985908"
   },
   "assetVersions": {
