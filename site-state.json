@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
-  "revision": "20261021-review-pending-2",
+  "revision": "20261021-review-pending-3",
   "status": {
     "phase": "review_pending",
     "summary": "试玩进展 · 审核中",
     "availability": "审核后开放",
-    "note": "当前试玩包仍在审核中，通过后再开放试玩；届时以 TapTap 页面为准。",
+    "note": "当前试玩包仍在审核中，通过后再开放试玩。开放情况以 TapTap 页面为准。",
     "url": "https://www.taptap.cn/app/985908"
   },
   "assetVersions": {
-    "assets/hero.webp": "20261021-2",
+    "assets/hero.webp": "20261021-3",
     "assets/logo.webp": "20261021-1",
     "assets/icon.png": "20261021-1",
     "assets/screenshots/01-wing.webp": "r70-1",
@@ -18,6 +18,6 @@
     "assets/screenshots/02-camp.png": "r70-1",
     "assets/screenshots/03-workshop.webp": "r70-1",
     "assets/screenshots/03-workshop.png": "r70-1",
-    "assets/lightweaver-r68-gameplay-29s.mp4": "r68-2"
+    "assets/lightweaver-r68-gameplay-29s.mp4": "r68-3"
   }
 }
