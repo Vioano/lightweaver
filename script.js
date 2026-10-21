@@ -91,7 +91,7 @@ function adoptPublicState(state) {
     if (path === 'assets/hero.webp') document.querySelector('.play-section').style.backgroundImage = `url("${url}")`;
     if (path.endsWith('.mp4')) {
       if (video.readyState > 0 || !video.paused) replaceVideoSource(url);
-      else video.querySelector('source').src = url;
+      else { video.querySelector('source').src = url; video.load(); }
     }
     adoptedAssetVersions.set(path, version);
   }
