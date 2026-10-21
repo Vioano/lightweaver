@@ -64,7 +64,7 @@ function replaceVideoSource(url) {
   if (!source || source.src === url) return;
   source.src = url;
   video.addEventListener('loadedmetadata', () => {
-    video.currentTime = Math.min(state.time, Number.isFinite(video.duration) ? Math.max(0, video.duration - .05) : state.time);
+    video.currentTime = Math.min(state.time, Number.isFinite(video.duration) ? Math.max(0, video.duration - (state.paused ? 0 : .05)) : state.time);
     video.volume = state.volume; video.muted = state.muted; video.playbackRate = state.rate;
     if (!state.paused && dialog.open) video.play().catch(() => {});
   }, { once: true });
@@ -120,7 +120,7 @@ function adoptPublicState(state) {
   publicRevision = state.revision;
 }
 
-const CLIENT_VERSION = '20261021-client-1';
+const CLIENT_VERSION = '20261021-client-2';
 const UPGRADE_STATE_KEY = 'lightweaver-upgrade-state-v1';
 root.dataset.clientVersion = CLIENT_VERSION;
 let clientUpgradeRunning = false;
@@ -148,9 +148,24 @@ async function upgradeClient(client) {
     location.replace(entry.href); return true;
   } catch { clientUpgradeRunning = false; return false; }
 }
+function readURLUpgradeState() {
+  if (!location.hash.startsWith('#upgradeState=')) return null;
+  try {
+    const encoded = location.hash.slice(14); if (encoded.length > 4096) return null;
+    const data = JSON.parse(atob(encoded.replace(/-/g, '+').replace(/_/g, '/')));
+    const n = (value, min, max, fallback = 0) => Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
+    if (data.schemaVersion !== 1 || !['dark', 'light'].includes(data.theme) || !data.video || typeof data.video.paused !== 'boolean') return null;
+    const ids = new Set(['gameplay-video', 'close-video', 'theme-toggle', '']);
+    const state = { schemaVersion: 1, savedAt: Date.now(), fromVersion: 'legacy-url-bridge', targetVersion: CLIENT_VERSION,
+      theme: data.theme, scrollX: n(data.scrollX, 0, 1000000), scrollY: n(data.scrollY, 0, 1000000), dialogOpen: data.dialogOpen === true,
+      video: { currentTime: n(data.video.currentTime, 0, 1000000), paused: data.video.paused, volume: n(data.video.volume, 0, 1, 1), muted: data.video.muted === true, playbackRate: n(data.video.playbackRate, .25, 4, 1), loop: data.video.loop === true },
+      focus: { id: ids.has(data.focus?.id) ? data.focus.id : '', watchIndex: n(data.focus?.watchIndex, -1, 1, -1), statusLink: data.focus?.statusLink === true }, openerIndex: n(data.openerIndex, 0, 1) };
+    history.replaceState(null, '', location.pathname + location.search); return state;
+  } catch { return null; }
+}
 async function restoreClientState() {
-  let state;
-  try { state = JSON.parse(sessionStorage.getItem(UPGRADE_STATE_KEY) || 'null'); } catch {}
+  let state = readURLUpgradeState();
+  try { state = state || JSON.parse(sessionStorage.getItem(UPGRADE_STATE_KEY) || 'null'); } catch {}
   if (!state || state.schemaVersion !== 1 || state.targetVersion !== CLIENT_VERSION || Date.now() - state.savedAt > 900000) return;
   updateTheme(state.theme === 'light' ? 'light' : 'dark');
   if (state.dialogOpen) { dialog.showModal(); document.body.classList.add('modal-open'); }
@@ -160,7 +175,7 @@ async function restoreClientState() {
   video.playbackRate = Number(saved.playbackRate) || 1; video.loop = !!saved.loop;
   if (state.dialogOpen || saved.currentTime > 0) {
     await new Promise(resolve => { if (video.readyState >= 1) return resolve(); const done = () => resolve(); video.addEventListener('loadedmetadata', done, { once: true }); video.preload = 'metadata'; video.load(); setTimeout(done, 6000); });
-    if (video.readyState >= 1) video.currentTime = Math.min(Number(saved.currentTime) || 0, Math.max(0, video.duration - .05));
+    if (video.readyState >= 1) video.currentTime = Math.min(Number(saved.currentTime) || 0, Math.max(0, video.duration - (saved.paused ? 0 : .05)));
   }
   if (!saved.paused && state.dialogOpen) await video.play().catch(() => {}); else video.pause();
   const focus = state.focus || {};
@@ -169,7 +184,7 @@ async function restoreClientState() {
   await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   window.scrollTo({ left: Number(state.scrollX) || 0, top: Number(state.scrollY) || 0, behavior: 'instant' });
   sessionStorage.removeItem(UPGRADE_STATE_KEY);
-  window.__lightweaverUpgrade = { from: state.fromVersion, to: CLIENT_VERSION, restored: true, at: Date.now(), paused: video.paused };
+  window.__lightweaverUpgrade = { from: state.fromVersion, to: CLIENT_VERSION, restored: true, at: Date.now(), paused: video.paused, savedTime: saved.currentTime, savedPaused: saved.paused };
 }
 
 let publicStateCheckRunning = false;
