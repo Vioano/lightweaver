@@ -120,7 +120,7 @@ function adoptPublicState(state) {
   publicRevision = state.revision;
 }
 
-const CLIENT_VERSION = '20261021-client-2';
+const CLIENT_VERSION = '20261021-client-3';
 const UPGRADE_STATE_KEY = 'lightweaver-upgrade-state-v1';
 root.dataset.clientVersion = CLIENT_VERSION;
 let clientUpgradeRunning = false;
@@ -172,11 +172,12 @@ async function restoreClientState() {
   opener = document.querySelectorAll('[data-watch]')[state.openerIndex] || document.querySelector('[data-watch]');
   const saved = state.video || {};
   video.volume = Math.max(0, Math.min(1, Number(saved.volume) || 0)); video.muted = !!saved.muted;
-  video.playbackRate = Number(saved.playbackRate) || 1; video.loop = !!saved.loop;
+  video.defaultPlaybackRate = Number(saved.playbackRate) || 1; video.playbackRate = video.defaultPlaybackRate; video.loop = !!saved.loop;
   if (state.dialogOpen || saved.currentTime > 0) {
     await new Promise(resolve => { if (video.readyState >= 1) return resolve(); const done = () => resolve(); video.addEventListener('loadedmetadata', done, { once: true }); video.preload = 'metadata'; video.load(); setTimeout(done, 6000); });
     if (video.readyState >= 1) video.currentTime = Math.min(Number(saved.currentTime) || 0, Math.max(0, video.duration - (saved.paused ? 0 : .05)));
   }
+  video.playbackRate = Number(saved.playbackRate) || 1;
   if (!saved.paused && state.dialogOpen) await video.play().catch(() => {}); else video.pause();
   const focus = state.focus || {};
   const target = (focus.id && document.getElementById(focus.id)) || (focus.watchIndex >= 0 && document.querySelectorAll('[data-watch]')[focus.watchIndex]) || (focus.statusLink && document.querySelector('[data-public-status-link]'));
