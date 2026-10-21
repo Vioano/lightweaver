@@ -1,0 +1,7 @@
+.DS_Store
+._*
+__MACOSX/
+design/
+evidence/
+prepare_assets.py
+verify-site.cjs
