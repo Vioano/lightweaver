@@ -90,19 +90,23 @@ function adoptPublicState(state) {
     });
     if (path === 'assets/hero.webp') document.querySelector('.play-section').style.backgroundImage = `url("${url}")`;
     if (path.endsWith('.mp4')) {
-      // Initial manifest adoption keeps a currently playing video untouched.
-      if (adoptedAssetVersions.has(path)) replaceVideoSource(url);
+      if (video.readyState > 0 || !video.paused) replaceVideoSource(url);
+      else video.querySelector('source').src = url;
     }
     adoptedAssetVersions.set(path, version);
   }
   publicRevision = state.revision;
 }
+let publicStateCheckRunning = false;
 async function checkPublicState() {
+  if (publicStateCheckRunning) return;
+  publicStateCheckRunning = true;
   try {
     const url = new URL(publicStateURL); url.searchParams.set('_', Date.now());
-    const response = await fetch(url, { cache: 'no-store', credentials: 'omit' });
+    const response = await fetch(url, { cache: 'no-store', credentials: 'omit', signal: AbortSignal.timeout(6000) });
     if (response.ok) adoptPublicState(await response.json());
   } catch { /* Keep the current page usable offline; retry without a UI interruption. */ }
+  finally { publicStateCheckRunning = false; }
 }
 checkPublicState();
 setInterval(checkPublicState, 8000);
